@@ -1,0 +1,10 @@
+google-cloud-pubsub==2.15.0
+python-dotenv
+prometheus-client
+google-cloud-storage
+exifread
+ffmpeg-python
+pymediainfo
+requests
+pydantic 
+packaging
