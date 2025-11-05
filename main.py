@@ -27,10 +27,10 @@ subscription_id = os.getenv("risk_subscription_id")  # Changed from pdf_subscrip
 NUM_MESSAGES = int(os.getenv("batch_size",1))
 
 # Risk assessment API endpoint
-RISK_ASSESSMENT_API = os.getenv("RISK_ASSESSMENT_API", "https://pose-api-931403550170.us-central1.run.app/process-video/")  # Changed from pdf_subscription_id
+RISK_ASSESSMENT_API = os.getenv("RISK_ASSESSMENT_API", "http://127.0.0.1:8001//api/classify_document")  # Changed from pdf_subscription_id
 
 # video metadata analysis topic
-RISK_ASSESSMENT_TOPIC = os.getenv("RISK_ASSESSMENT_TOPIC", "video-sub")
+RISK_ASSESSMENT_TOPIC = os.getenv("RISK_ASSESSMENT_TOPIC", "risk-assessment-sub")
 
 
 
@@ -43,36 +43,31 @@ publisher = pubsub_v1.PublisherClient()
 # Initialize GCS client
 storage_client = storage.Client()
 
-# Request model
-class VideoRequest(BaseModel):
-    gcs_uri: str  # e.g., gs://training-workout-bucket/demo3.mp4
-    video_id: str  # Unique identifier for the video
 
-class VideoFramesRequest(BaseModel):
-    knee_peak_gs_url: str
-    knee_peak_pose_id: str
-    foot_plant_gs_url: str
-    foot_plant_pose_id: str
-    release_gs_url: str
-    release_pose_id: str
-    video_id: str
+
+class RiskAssessmentRequest(BaseModel):
+    company_id: str
+    document_id: str
+    gs_uri: str  # e.g., gs://training-workout-bucket/demo3.mp4
 
 
 
-def process_risk_assessment(request: VideoRequest, transaction_id: str = "unknown"):
+def process_risk_assessment(request: RiskAssessmentRequest, transaction_id: str = "unknown"):
     """
     Process risk assessment by calling the risk assessment API
     """
-    video_id = request.video_id
-    gcs_uri = request.gcs_uri
+    company_id = request.company_id
+    document_id = request.document_id
+    gs_uri = request.gs_uri
     
     try:
-        print(f"[{transaction_id}] Preparing to call risk assessment API for {gcs_uri}")
+        print(f"[{transaction_id}] Preparing to call risk assessment API for {gs_uri}")
 
         # Prepare the payload for the risk assessment API
         payload = {
-            "gcs_uri": gcs_uri,
-            "video_id": video_id,
+            "company_id": company_id,
+            "document_id": document_id,
+            "gs_uri": gs_uri
         }
 
         print(f"[{transaction_id}] Calling risk assessment API with payload: {payload}")
@@ -129,56 +124,38 @@ def callback(message: pubsub_v1.subscriber.message.Message):
             return
 
         # Extract video-specific parameters
-        video_id = json_data.get('video_id')
-        gcs_uri = json_data.get('gcs_uri')
-
-
-        # Extract video-specific parameters - for video-sub topic
+        company_id = json_data.get('company_id')
+        document_id = json_data.get('document_id')
         gs_uri = json_data.get('gs_uri')
-        bucket_name = json_data.get('bucket_name')
-        file_path = json_data.get('file_path')
-        sports = json_data.get('sports')
-        player_id = json_data.get('player_id')
-        user_id = json_data.get('user_id')
-        query = json_data.get('query')
-        analysis_title = json_data.get('analysis_title')
-        timestamp = json_data.get('timestamp')
-        mime_type = json_data.get('mime_type')
-        event_id = json_data.get('event_id')
-
-        # Extract additional metadata fields - for video-sub topic 
-        exercise_id = json_data.get('exercise_id')
-        training_id = json_data.get('training_id')
-        assignment_id = json_data.get('assignment_id')
-        exercise_name = json_data.get('exercise_name')
-        workout_name = json_data.get('workout_name')
-        notes = json_data.get('notes')        
 
         no_of_retry = message.delivery_attempt
-        transaction_id = video_id or 'unknown'
+        transaction_id = document_id or 'unknown'
 
         print(
             f"[{transaction_id}] Video Processing Parameters:\n"
-            f"video_id: {video_id}\n"
-            f"gcs_uri: {gcs_uri}\n"
+            f"company_id: {company_id}\n"
+            f"document_id: {document_id}\n"
+            f"gs_uri: {gs_uri}\n"
             f"No_of_Retry: {no_of_retry}"
         )
 
         # Validate required fields
-        if not video_id:
-            raise ValueError("video_id is required")
-        if not gcs_uri:
-            raise ValueError("gcs_uri is required")
+        if not company_id:
+            raise ValueError("company_id is required")
+        if not document_id:
+            raise ValueError("document_id is required")
+        if not gs_uri:
+            raise ValueError("gs_uri is required")
 
         # -----------------------------
         # STEP 1: Process full video analysis
         # -----------------------------
-        print(f"[{transaction_id}] Starting risk assessment for {gcs_uri}...")
+        print(f"[{transaction_id}] Starting risk assessment for {gs_uri}...")
         analysis_result = process_risk_assessment(
-            request=VideoRequest(gcs_uri=gcs_uri, video_id=video_id),
+            request=RiskAssessmentRequest(gs_uri=gs_uri, document_id=document_id),
             transaction_id=transaction_id
         )
-        if analysis_result and "gcs_image_urls" in analysis_result:
+        if analysis_result:
             print(f"[{transaction_id}] ✅ Risk assessment completed successfully")
         else:
             raise ValueError(f"[{transaction_id}] ❌ Failed to get result")
@@ -225,9 +202,9 @@ if __name__ == "__main__":
     print(f"Subscribed to {subscription_path} with flow control: {flow_control}")
 
     # Keep the main thread alive while messages are being processed
-    print(f"Listening for process video messages on {subscription_path}...")
+    print(f"Listening for process risk assessment messages on {subscription_path}...")
     try:
         future.result()  # Blocks the main thread indefinitely, receiving messages
     except KeyboardInterrupt:
         future.cancel()  # Cancel the subscription when interrupted
-        print("Process video subscription canceled.")
+        print("Process risk assessment subscription canceled.")
