@@ -96,11 +96,11 @@ def process_risk_assessment(request: RiskAssessmentRequest, transaction_id: str 
         return response.json()
         
     except requests.exceptions.Timeout as e:
-        print(f"[{transaction_id}] Video analysis API call timed out")
+        print(f"[{transaction_id}] Risk assessment API call timed out")
         error_details = f"API Timeout Error: {str(e)}\n\nStacktrace:\n{traceback.format_exc()}"
         raise
     except requests.exceptions.RequestException as e:
-        print(f"[{transaction_id}] Video analysis API call failed: {str(e)}")
+        print(f"[{transaction_id}] Risk assessment API call failed: {str(e)}")
         error_details = f"API Request Error: {str(e)}\n\nStacktrace:\n{traceback.format_exc()}"
         raise
     except Exception as e:
@@ -152,7 +152,7 @@ def callback(message: pubsub_v1.subscriber.message.Message):
         # -----------------------------
         print(f"[{transaction_id}] Starting risk assessment for {gs_uri}...")
         analysis_result = process_risk_assessment(
-            request=RiskAssessmentRequest(gs_uri=gs_uri, document_id=document_id),
+            request=RiskAssessmentRequest(company_id=company_id, gs_uri=gs_uri, document_id=document_id),
             transaction_id=transaction_id
         )
         if analysis_result:
