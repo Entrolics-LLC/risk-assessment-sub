@@ -110,7 +110,7 @@ def process_risk_assessment(request: RiskAssessmentRequest, transaction_id: str 
 
 # Callback function that processes incoming Pub/Sub messages
 def callback(message: pubsub_v1.subscriber.message.Message):
-    video_id = None
+    document_id = None
 
     try:
         msg = message.data.decode('utf-8')
@@ -123,7 +123,7 @@ def callback(message: pubsub_v1.subscriber.message.Message):
             message.nack()
             return
 
-        # Extract video-specific parameters
+        # Extract risk-specific parameters
         company_id = json_data.get('company_id')
         document_id = json_data.get('document_id')
         gs_uri = json_data.get('gs_uri')
@@ -132,7 +132,7 @@ def callback(message: pubsub_v1.subscriber.message.Message):
         transaction_id = document_id or 'unknown'
 
         print(
-            f"[{transaction_id}] Video Processing Parameters:\n"
+            f"[{transaction_id}] Risk assessment Processing Parameters:\n"
             f"company_id: {company_id}\n"
             f"document_id: {document_id}\n"
             f"gs_uri: {gs_uri}\n"
@@ -148,7 +148,7 @@ def callback(message: pubsub_v1.subscriber.message.Message):
             raise ValueError("gs_uri is required")
 
         # -----------------------------
-        # STEP 1: Process full video analysis
+        # STEP 1: Process full risk assessment
         # -----------------------------
         print(f"[{transaction_id}] Starting risk assessment for {gs_uri}...")
         analysis_result = process_risk_assessment(
@@ -166,26 +166,26 @@ def callback(message: pubsub_v1.subscriber.message.Message):
 
     except json.JSONDecodeError as e:
         error_trace = traceback.format_exc()
-        transaction_id = video_id or 'unknown'
+        transaction_id = document_id or 'unknown'
         print(f"[{transaction_id}] ❌ Invalid JSON in message: {e}\n{error_trace}")
         message.nack()
 
     except ValueError as e:
         error_trace = traceback.format_exc()
-        transaction_id = video_id or 'unknown'
+        transaction_id = document_id or 'unknown'
         print(f"[{transaction_id}] ❌ Missing required field: {e}\n{error_trace}")
         message.nack()
 
     except requests.exceptions.Timeout as e:
         error_trace = traceback.format_exc()
-        transaction_id = video_id or 'unknown'
-        print(f"[{transaction_id}] ❌ API call timed out for {video_id}\n{error_trace}")
+        transaction_id = document_id or 'unknown'
+        print(f"[{transaction_id}] ❌ API call timed out for {document_id}\n{error_trace}")
         message.nack()
 
     except Exception as e:
         error_trace = traceback.format_exc()
-        transaction_id = video_id or 'unknown'
-        print(f"[{transaction_id}] ❌ Error processing video {video_id}: {e}\n{error_trace}")
+        transaction_id = document_id or 'unknown'
+        print(f"[{transaction_id}] ❌ Error processing document {document_id}: {e}\n{error_trace}")
         message.nack()
 
 
